@@ -1,4 +1,5 @@
-from typing import Any, Optional
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
@@ -23,7 +24,7 @@ class IsolationForestDetector(BaseAnomalyDetector):
         max_features: float = DEFAULT_MAX_FEATURES,
         random_state: int = DEFAULT_RANDOM_STATE,
         n_jobs: int = DEFAULT_N_JOBS,
-        config: Optional[dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(name="IsolationForestDetector", config=config or {})
         self.n_estimators = n_estimators
@@ -44,7 +45,9 @@ class IsolationForestDetector(BaseAnomalyDetector):
         self.feature_pipeline = FeaturePipeline(use_user_agg=True, use_sequential=True)
         self.feature_names_: list[str] = []
 
-    def fit(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> "IsolationForestDetector":
+    def fit(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> "IsolationForestDetector":
         if isinstance(X, pd.DataFrame):
             _, X_matrix = self.feature_pipeline.fit_transform(X)
             self.feature_names_ = self.feature_pipeline.numeric_cols_
@@ -68,7 +71,9 @@ class IsolationForestDetector(BaseAnomalyDetector):
         scores = -self.model.score_samples(X_matrix)
         return scores
 
-    def predict_label(self, X: pd.DataFrame | np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+    def predict_label(
+        self, X: pd.DataFrame | np.ndarray, threshold: float | None = None
+    ) -> np.ndarray:
         if not self.is_fitted:
             raise RuntimeError("Model must be fitted before predict")
 
@@ -84,4 +89,5 @@ class IsolationForestDetector(BaseAnomalyDetector):
         if not self.is_fitted:
             raise RuntimeError("Model must be fitted first")
         import shap
+
         return shap.TreeExplainer(self.model)

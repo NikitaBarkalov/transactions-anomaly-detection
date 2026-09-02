@@ -1,4 +1,5 @@
-from typing import Optional, Sequence
+from collections.abc import Sequence
+
 import numpy as np
 import pandas as pd
 
@@ -21,10 +22,14 @@ class ConsensusTriangulator:
     def generate_pseudo_labels(
         self,
         predictions: Sequence[np.ndarray | pd.Series],
-        negative_downsample_ratio: Optional[float] = None,
-        random_state: Optional[int] = None,
+        negative_downsample_ratio: float | None = None,
+        random_state: int | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        downsample_ratio = negative_downsample_ratio if negative_downsample_ratio is not None else self.negative_downsample_ratio
+        downsample_ratio = (
+            negative_downsample_ratio
+            if negative_downsample_ratio is not None
+            else self.negative_downsample_ratio
+        )
         seed = random_state if random_state is not None else self.random_state
 
         pred_matrix = np.column_stack([np.asarray(p, dtype=int) for p in predictions])
@@ -41,7 +46,9 @@ class ConsensusTriangulator:
         sampled_neg_indices = rng.choice(neg_indices, size=n_neg, replace=False)
 
         selected_indices = np.concatenate([pos_indices, sampled_neg_indices])
-        targets = np.concatenate([np.ones(len(pos_indices), dtype=int), np.zeros(len(sampled_neg_indices), dtype=int)])
+        targets = np.concatenate(
+            [np.ones(len(pos_indices), dtype=int), np.zeros(len(sampled_neg_indices), dtype=int)]
+        )
 
         shuffle_perm = rng.permutation(len(selected_indices))
         return selected_indices[shuffle_perm], targets[shuffle_perm]

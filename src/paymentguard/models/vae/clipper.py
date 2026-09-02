@@ -1,12 +1,11 @@
-from typing import Optional
 import numpy as np
 
 
 class PerFeatureClipper:
     def __init__(self, percentile: float = 99.9) -> None:
         self.percentile = percentile
-        self.lo_: Optional[np.ndarray] = None
-        self.hi_: Optional[np.ndarray] = None
+        self.lo_: np.ndarray | None = None
+        self.hi_: np.ndarray | None = None
 
     def fit(self, X: np.ndarray) -> "PerFeatureClipper":
         lo_pct = 100.0 - self.percentile

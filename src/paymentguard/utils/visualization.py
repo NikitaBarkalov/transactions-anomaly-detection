@@ -1,4 +1,5 @@
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -17,17 +18,19 @@ PALETTE = {
 
 
 def apply_theme() -> None:
-    plt.rcParams.update({
-        "figure.facecolor": PALETTE["bg"],
-        "axes.facecolor": PALETTE["card"],
-        "axes.edgecolor": PALETTE["grid"],
-        "axes.labelcolor": PALETTE["text"],
-        "xtick.color": PALETTE["subtext"],
-        "ytick.color": PALETTE["subtext"],
-        "text.color": PALETTE["text"],
-        "grid.color": PALETTE["grid"],
-        "grid.linewidth": 0.6,
-        "legend.facecolor": PALETTE["card"],
-        "legend.edgecolor": PALETTE["grid"],
-        "figure.autolayout": True,
-    })
+    plt.rcParams.update(
+        {
+            "figure.facecolor": PALETTE["bg"],
+            "axes.facecolor": PALETTE["card"],
+            "axes.edgecolor": PALETTE["grid"],
+            "axes.labelcolor": PALETTE["text"],
+            "xtick.color": PALETTE["subtext"],
+            "ytick.color": PALETTE["subtext"],
+            "text.color": PALETTE["text"],
+            "grid.color": PALETTE["grid"],
+            "grid.linewidth": 0.6,
+            "legend.facecolor": PALETTE["card"],
+            "legend.edgecolor": PALETTE["grid"],
+            "figure.autolayout": True,
+        }
+    )

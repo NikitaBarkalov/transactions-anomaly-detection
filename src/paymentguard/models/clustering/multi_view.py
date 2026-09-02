@@ -1,4 +1,5 @@
-from typing import Any, Optional
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from sklearn.cluster import MiniBatchKMeans
@@ -18,26 +19,54 @@ DEFAULT_RANDOM_STATE = 42
 DEFAULT_INCLUDE_RULE1 = True
 
 BEHAVIORAL_FEATURES = [
-    "log_amount", "amount_zscore", "amount_vs_user_avg",
-    "log_latency", "is_latency_outlier",
-    "is_geo_mismatch", "is_secured", "is_risky_combo",
-    "is_night", "hour_sin", "hour_cos", "dow_sin", "dow_cos",
-    "refund_ratio", "is_full_refund", "has_error",
-    "user_id_freq", "bank_id_freq", "psp_id_freq",
-    "error_code_freq", "ip_country_freq", "bin_country_freq", "currency_freq",
-    "user_tx_count", "user_fail_rate_10", "user_geo_rate_10",
-    "log_seconds_since_last", "is_velocity_burst",
-    "psp_id_fail_rate", "bank_id_fail_rate",
-    "high_amt_geo_unsecured", "first_high_amount", "night_velocity",
+    "log_amount",
+    "amount_zscore",
+    "amount_vs_user_avg",
+    "log_latency",
+    "is_latency_outlier",
+    "is_geo_mismatch",
+    "is_secured",
+    "is_risky_combo",
+    "is_night",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos",
+    "refund_ratio",
+    "is_full_refund",
+    "has_error",
+    "user_id_freq",
+    "bank_id_freq",
+    "psp_id_freq",
+    "error_code_freq",
+    "ip_country_freq",
+    "bin_country_freq",
+    "currency_freq",
+    "user_tx_count",
+    "user_fail_rate_10",
+    "user_geo_rate_10",
+    "log_seconds_since_last",
+    "is_velocity_burst",
+    "psp_id_fail_rate",
+    "bank_id_fail_rate",
+    "high_amt_geo_unsecured",
+    "first_high_amount",
+    "night_velocity",
 ]
 
 TECHNICAL_FEATURES = [
-    "log_amount", "amount_bucket", "is_amount_outlier",
+    "log_amount",
+    "amount_bucket",
+    "is_amount_outlier",
     "is_secured",
-    "is_applepay", "is_googlepay",
+    "is_applepay",
+    "is_googlepay",
     "is_first_order",
-    "is_rebill", "is_oneclick", "is_payment_missing",
-    "psp_id_fail_rate", "bank_id_fail_rate",
+    "is_rebill",
+    "is_oneclick",
+    "is_payment_missing",
+    "psp_id_fail_rate",
+    "bank_id_fail_rate",
     "first_high_amount",
 ]
 
@@ -48,10 +77,13 @@ LATENCY_FEATURES = [
     "log_seconds_since_last",
     "is_velocity_burst",
     "log_amount",
-    "refund_ratio", "is_full_refund",
+    "refund_ratio",
+    "is_full_refund",
     "net_amount",
-    "has_error", "error_code_freq",
-    "is_geo_mismatch", "is_risky_combo",
+    "has_error",
+    "error_code_freq",
+    "is_geo_mismatch",
+    "is_risky_combo",
 ]
 
 
@@ -67,7 +99,7 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         batch_size: int = DEFAULT_BATCH_SIZE,
         random_state: int = DEFAULT_RANDOM_STATE,
         include_rule1: bool = DEFAULT_INCLUDE_RULE1,
-        config: Optional[dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(name="MultiViewClusteringDetector", config=config or {})
         self.batch_size = batch_size
@@ -77,9 +109,21 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         self.latency_threshold = latency_threshold
         self.include_rule1 = include_rule1
 
-        self.km_behavioral = MiniBatchKMeans(n_clusters=n_clusters_behavioral, random_state=self.random_state, batch_size=self.batch_size)
-        self.km_technical = MiniBatchKMeans(n_clusters=n_clusters_technical, random_state=self.random_state, batch_size=self.batch_size)
-        self.km_latency = MiniBatchKMeans(n_clusters=n_clusters_latency, random_state=self.random_state, batch_size=self.batch_size)
+        self.km_behavioral = MiniBatchKMeans(
+            n_clusters=n_clusters_behavioral,
+            random_state=self.random_state,
+            batch_size=self.batch_size,
+        )
+        self.km_technical = MiniBatchKMeans(
+            n_clusters=n_clusters_technical,
+            random_state=self.random_state,
+            batch_size=self.batch_size,
+        )
+        self.km_latency = MiniBatchKMeans(
+            n_clusters=n_clusters_latency,
+            random_state=self.random_state,
+            batch_size=self.batch_size,
+        )
 
         self.scaler_b = StandardScaler()
         self.scaler_t = StandardScaler()
@@ -93,9 +137,11 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         self.fail_rate_maps_: dict[str, dict[Any, float]] = {}
         self.lat_mean_: float = 0.0
         self.lat_std_: float = 0.0
-        self.train_labels_: Optional[np.ndarray] = None
+        self.train_labels_: np.ndarray | None = None
 
-    def _engineer_features(self, df: pd.DataFrame, is_train: bool = True) -> tuple[pd.DataFrame, np.ndarray]:
+    def _engineer_features(
+        self, df: pd.DataFrame, is_train: bool = True
+    ) -> tuple[pd.DataFrame, np.ndarray]:
         df = df.copy()
 
         created_at = pd.to_datetime(df["created_at"], utc=True)
@@ -127,7 +173,9 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         df["is_full_refund"] = (df["refund_ratio"] >= 1.0).astype(int)
 
         df["amount_usd"] = df["amount"] * df["currency"].map(CONVERSION_COEFFS).fillna(1.0)
-        df["refunded_amount_usd"] = df["refunded_amount"] * df["currency"].map(CONVERSION_COEFFS).fillna(1.0)
+        df["refunded_amount_usd"] = df["refunded_amount"] * df["currency"].map(
+            CONVERSION_COEFFS
+        ).fillna(1.0)
 
         df["amount_bucket"] = pd.cut(
             df["amount_usd"],
@@ -150,7 +198,15 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         df["is_oneclick"] = (df["order_payment_type"] == "1-click").astype(int)
         df["is_payment_missing"] = df["order_payment_type"].isna().astype(int)
 
-        freq_cols = ["user_id", "bank_id", "psp_id", "error_code", "ip_country", "bin_country", "currency"]
+        freq_cols = [
+            "user_id",
+            "bank_id",
+            "psp_id",
+            "error_code",
+            "ip_country",
+            "bin_country",
+            "currency",
+        ]
         for col in freq_cols:
             if is_train:
                 freq = df[col].value_counts(normalize=True).to_dict()
@@ -164,14 +220,26 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         grp = df.groupby("user_id")
 
         df["user_tx_count"] = grp.cumcount()
-        df["user_fail_rate_10"] = grp["is_fail"].transform(lambda x: x.shift(1).rolling(10, min_periods=1).mean()).fillna(0.0)
-        df["user_geo_rate_10"] = grp["is_geo_mismatch"].transform(lambda x: x.shift(1).rolling(10, min_periods=1).mean()).fillna(0.0)
+        df["user_fail_rate_10"] = (
+            grp["is_fail"]
+            .transform(lambda x: x.shift(1).rolling(10, min_periods=1).mean())
+            .fillna(0.0)
+        )
+        df["user_geo_rate_10"] = (
+            grp["is_geo_mismatch"]
+            .transform(lambda x: x.shift(1).rolling(10, min_periods=1).mean())
+            .fillna(0.0)
+        )
 
         time_diff = grp["_created_at"].diff().dt.total_seconds().fillna(0.0)
         df["log_seconds_since_last"] = np.log1p(time_diff.clip(lower=0.0))
         df["is_velocity_burst"] = (time_diff.between(0.1, 60.0)).astype(int)
 
-        user_avg_10 = grp["amount_usd"].transform(lambda x: x.shift(1).rolling(10, min_periods=1).mean()).fillna(df["amount_usd"].mean())
+        user_avg_10 = (
+            grp["amount_usd"]
+            .transform(lambda x: x.shift(1).rolling(10, min_periods=1).mean())
+            .fillna(df["amount_usd"].mean())
+        )
         df["amount_vs_user_avg"] = df["amount_usd"] / (user_avg_10 + 1e-9)
 
         for col in ["psp_id", "bank_id"]:
@@ -182,15 +250,21 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         amt_q90 = float(df["amount"].quantile(0.90))
         amt_q95 = float(df["amount"].quantile(0.95))
 
-        df["high_amt_geo_unsecured"] = ((df["amount"] > amt_q90) & (df["is_geo_mismatch"] == 1) & (df["is_secured"] == 0)).astype(int)
-        df["first_high_amount"] = ((df["is_first_order"] == 1) & (df["amount"] > amt_q95)).astype(int)
+        df["high_amt_geo_unsecured"] = (
+            (df["amount"] > amt_q90) & (df["is_geo_mismatch"] == 1) & (df["is_secured"] == 0)
+        ).astype(int)
+        df["first_high_amount"] = ((df["is_first_order"] == 1) & (df["amount"] > amt_q95)).astype(
+            int
+        )
         df["night_velocity"] = ((df["is_night"] == 1) & (df["is_velocity_burst"] == 1)).astype(int)
 
         sorted_indices = df["_orig_idx"].values
         df = df.drop(columns=["_orig_idx", "_created_at"], errors="ignore")
         return df, sorted_indices
 
-    def fit(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> "MultiViewClusteringDetector":
+    def fit(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> "MultiViewClusteringDetector":
         if not isinstance(X, pd.DataFrame):
             raise TypeError("MultiViewClusteringDetector requires DataFrame input")
 
@@ -221,15 +295,15 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
             return (s - s.min()) / (s.max() - s.min() + 1e-9)
 
         score_b = (
-            norm(profile_b["refund_rate"]) * 0.20 +
-            norm(profile_b["full_refund_rate"]) * 0.20 +
-            norm(profile_b["risky_combo"]) * 0.15 +
-            norm(profile_b["error_rate"]) * 0.10 +
-            norm(profile_b["geo_mismatch"]) * 0.10 +
-            norm(profile_b["velocity_rate"]) * 0.10 +
-            norm(profile_b["avg_latency"]) * 0.05 +
-            norm(profile_b["avg_amount"]) * 0.05 +
-            norm(profile_b["night_rate"]) * 0.05
+            norm(profile_b["refund_rate"]) * 0.20
+            + norm(profile_b["full_refund_rate"]) * 0.20
+            + norm(profile_b["risky_combo"]) * 0.15
+            + norm(profile_b["error_rate"]) * 0.10
+            + norm(profile_b["geo_mismatch"]) * 0.10
+            + norm(profile_b["velocity_rate"]) * 0.10
+            + norm(profile_b["avg_latency"]) * 0.05
+            + norm(profile_b["avg_amount"]) * 0.05
+            + norm(profile_b["night_rate"]) * 0.05
         )
         self.anomaly_clusters_b_ = set(score_b[score_b > self.behavioral_threshold].index)
         flag_b = enriched_df["cluster_b"].isin(self.anomaly_clusters_b_).values
@@ -256,12 +330,12 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
             velocity_rate=("is_velocity_burst", "mean"),
         )
         score_l = (
-            norm(profile_l["avg_latency"]) * 0.40 +
-            norm(profile_l["fail_rate"]) * 0.15 +
-            norm(profile_l["velocity_rate"]) * 0.15 +
-            norm(profile_l["full_refund_rate"]) * 0.15 +
-            norm(profile_l["error_rate"]) * 0.10 +
-            norm(profile_l["geo_mismatch"]) * 0.05
+            norm(profile_l["avg_latency"]) * 0.40
+            + norm(profile_l["fail_rate"]) * 0.15
+            + norm(profile_l["velocity_rate"]) * 0.15
+            + norm(profile_l["full_refund_rate"]) * 0.15
+            + norm(profile_l["error_rate"]) * 0.10
+            + norm(profile_l["geo_mismatch"]) * 0.05
         )
         self.anomaly_clusters_l_ = set(score_l[score_l > self.latency_threshold].index)
         flag_l = enriched_df["cluster_l"].isin(self.anomaly_clusters_l_).values
@@ -269,14 +343,14 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         rule_1 = np.zeros(len(enriched_df), dtype=bool)
         if self.include_rule1:
             rule_1 = (
-                (enriched_df["psp_id"] == "psp_alpha") &
-                (enriched_df["order_type"] == "recurring") &
-                (enriched_df["error_code"].astype(str).isin(["3.08", "3.8"])) &
-                (enriched_df["amount_usd"] > 70.0)
+                (enriched_df["psp_id"] == "psp_alpha")
+                & (enriched_df["order_type"] == "recurring")
+                & (enriched_df["error_code"].astype(str).isin(["3.08", "3.8"]))
+                & (enriched_df["amount_usd"] > 70.0)
             ).values
 
         sorted_is_anomaly = (flag_b | flag_t | flag_l | rule_1).astype(int)
-        
+
         train_labels = np.zeros_like(sorted_is_anomaly)
         train_labels[sorted_indices] = sorted_is_anomaly
         self.train_labels_ = train_labels
@@ -288,13 +362,17 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         labels = self.predict_label(X)
         return labels.astype(float)
 
-    def fit_predict(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> np.ndarray:
+    def fit_predict(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> np.ndarray:
         self.fit(X, y)
         if self.train_labels_ is not None:
             return self.train_labels_
         return self.predict_label(X)
 
-    def predict_label(self, X: pd.DataFrame | np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+    def predict_label(
+        self, X: pd.DataFrame | np.ndarray, threshold: float | None = None
+    ) -> np.ndarray:
         if not self.is_fitted:
             raise RuntimeError("Model must be fitted before predict")
         if not isinstance(X, pd.DataFrame):
@@ -302,9 +380,15 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
 
         enriched_df, sorted_indices = self._engineer_features(X, is_train=False)
 
-        c_b = self.km_behavioral.predict(self.scaler_b.transform(enriched_df[BEHAVIORAL_FEATURES].fillna(0.0)))
-        c_t = self.km_technical.predict(self.scaler_t.transform(enriched_df[TECHNICAL_FEATURES].fillna(0.0)))
-        c_l = self.km_latency.predict(self.scaler_l.transform(enriched_df[LATENCY_FEATURES].fillna(0.0)))
+        c_b = self.km_behavioral.predict(
+            self.scaler_b.transform(enriched_df[BEHAVIORAL_FEATURES].fillna(0.0))
+        )
+        c_t = self.km_technical.predict(
+            self.scaler_t.transform(enriched_df[TECHNICAL_FEATURES].fillna(0.0))
+        )
+        c_l = self.km_latency.predict(
+            self.scaler_l.transform(enriched_df[LATENCY_FEATURES].fillna(0.0))
+        )
 
         flag_b = pd.Series(c_b).isin(self.anomaly_clusters_b_).values
         flag_t = pd.Series(c_t).isin(self.anomaly_clusters_t_).values
@@ -313,10 +397,10 @@ class MultiViewClusteringDetector(BaseAnomalyDetector):
         rule_1 = np.zeros(len(enriched_df), dtype=bool)
         if self.include_rule1:
             rule_1 = (
-                (enriched_df["psp_id"] == "psp_alpha") &
-                (enriched_df["order_type"] == "recurring") &
-                (enriched_df["error_code"].astype(str).isin(["3.08", "3.8"])) &
-                (enriched_df["amount_usd"] > 70.0)
+                (enriched_df["psp_id"] == "psp_alpha")
+                & (enriched_df["order_type"] == "recurring")
+                & (enriched_df["error_code"].astype(str).isin(["3.08", "3.8"]))
+                & (enriched_df["amount_usd"] > 70.0)
             ).values
 
         sorted_is_anomaly = (flag_b | flag_t | flag_l | rule_1).astype(int)

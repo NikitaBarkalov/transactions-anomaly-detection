@@ -1,6 +1,7 @@
 from pathlib import Path
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
 
 from paymentguard.utils.visualization import apply_theme
 
@@ -19,7 +20,7 @@ def generate_shap_summary_plot(
 
     shap_values = explainer.shap_values(X_sample)
 
-    fig = plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 6))
     shap.summary_plot(
         shap_values,
         X_sample,

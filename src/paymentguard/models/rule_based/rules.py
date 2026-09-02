@@ -1,11 +1,12 @@
-from typing import Any, Optional
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
 from paymentguard.core.base_detector import BaseAnomalyDetector
-from paymentguard.features.temporal import compute_temporal_features
 from paymentguard.features.financial import compute_financial_features
 from paymentguard.features.geo_security import compute_geo_security_features
+from paymentguard.features.temporal import compute_temporal_features
 
 DEFAULT_AMOUNT_IQR_MULTIPLIER = 3.0
 DEFAULT_LATENCY_OUTLIER_THRESHOLD = 3000.0
@@ -24,7 +25,7 @@ class RuleBasedAuditor(BaseAnomalyDetector):
         compromised_bank_id: int = DEFAULT_COMPROMISED_BANK_ID,
         psp_beta_august_storm: bool = DEFAULT_PSP_BETA_AUGUST_STORM,
         psp_alpha_recurring_70: bool = DEFAULT_PSP_ALPHA_RECURRING_70,
-        config: Optional[dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(name="RuleBasedAuditor", config=config or {})
         self.amount_iqr_multiplier = amount_iqr_multiplier
@@ -35,7 +36,9 @@ class RuleBasedAuditor(BaseAnomalyDetector):
         self.psp_alpha_recurring_70 = psp_alpha_recurring_70
         self.layer_anomalies_: dict[str, set[Any]] = {}
 
-    def fit(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> "RuleBasedAuditor":
+    def fit(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> "RuleBasedAuditor":
         self.is_fitted = True
         return self
 
@@ -54,14 +57,20 @@ class RuleBasedAuditor(BaseAnomalyDetector):
         flags["layer1_zero_or_neg_amt"] = df["amount"] <= 0
         flags["layer1_amount_outlier"] = df["is_amount_outlier_3sigma"].astype(bool)
         flags["layer2_extreme_latency"] = df["latency_sec"] > self.latency_outlier_threshold
-        flags["layer2_gamma_latency"] = (df["psp_id"] == "psp_gamma") & (df["latency_sec"] > self.gamma_latency_threshold)
+        flags["layer2_gamma_latency"] = (df["psp_id"] == "psp_gamma") & (
+            df["latency_sec"] > self.gamma_latency_threshold
+        )
 
         if "is_velocity_burst" in df.columns:
             flags["layer3_velocity_burst"] = df["is_velocity_burst"].astype(bool)
 
         flags["layer4_mismatch_first"] = df["mismatch_first_order"].astype(bool)
         flags["layer5_compromised_bank_777"] = df["bank_id"] == self.compromised_bank_id
-        flags["layer6_success_with_error"] = (df["status"] == "success") & df["error_code"].notna() & (df["error_code"] != "no_error")
+        flags["layer6_success_with_error"] = (
+            (df["status"] == "success")
+            & df["error_code"].notna()
+            & (df["error_code"] != "no_error")
+        )
         flags["layer7_over_refund"] = df["refund_exceeds_amount"].astype(bool)
         flags["layer7_refund_on_fail"] = (df["has_refund"]) & (df["status"] == "fail")
 
@@ -70,16 +79,18 @@ class RuleBasedAuditor(BaseAnomalyDetector):
             aug_start = pd.to_datetime("2025-08-05").date()
             aug_end = pd.to_datetime("2025-08-09").date()
             flags["layer8_august_psp_beta_refund_storm"] = (
-                (date_series >= aug_start) & (date_series <= aug_end) &
-                (df["psp_id"] == "psp_beta") & (df["has_refund"])
+                (date_series >= aug_start)
+                & (date_series <= aug_end)
+                & (df["psp_id"] == "psp_beta")
+                & (df["has_refund"])
             )
 
         if self.psp_alpha_recurring_70:
             flags["layer8_psp_alpha_recurring_glitch"] = (
-                (df["psp_id"] == "psp_alpha") &
-                (df["order_type"] == "recurring") &
-                (df["error_code"].astype(str).isin(["3.08", "3.8"])) &
-                (df["amount_usd"] > 70.0)
+                (df["psp_id"] == "psp_alpha")
+                & (df["order_type"] == "recurring")
+                & (df["error_code"].astype(str).isin(["3.08", "3.8"]))
+                & (df["amount_usd"] > 70.0)
             )
 
         return flags
@@ -93,7 +104,9 @@ class RuleBasedAuditor(BaseAnomalyDetector):
         scores = np.clip(flag_matrix.sum(axis=1) / 3.0, 0.0, 1.0)
         return scores
 
-    def predict_label(self, X: pd.DataFrame | np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+    def predict_label(
+        self, X: pd.DataFrame | np.ndarray, threshold: float | None = None
+    ) -> np.ndarray:
         if not isinstance(X, pd.DataFrame):
             raise TypeError("RuleBasedAuditor requires a pandas DataFrame input")
 

@@ -1,8 +1,9 @@
-from typing import Any, Optional
 import warnings
+from typing import Any
+
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
-import lightgbm as lgb
 from sklearn.model_selection import StratifiedKFold
 
 from paymentguard.core.base_detector import BaseAnomalyDetector
@@ -38,7 +39,7 @@ class SemiSupervisedLGBMDetector(BaseAnomalyDetector):
         anomaly_threshold: float = DEFAULT_ANOMALY_THRESHOLD,
         log_period: int = DEFAULT_LOG_PERIOD,
         random_state: int = DEFAULT_RANDOM_STATE,
-        config: Optional[dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(name="SemiSupervisedLGBMDetector", config=config or {})
         self.n_splits = n_splits
@@ -57,7 +58,7 @@ class SemiSupervisedLGBMDetector(BaseAnomalyDetector):
         self.models_: list[lgb.LGBMClassifier] = []
         self.best_iterations_: list[int] = []
         self.calibrated_threshold_: float = anomaly_threshold
-        self._cached_scores: Optional[np.ndarray] = None
+        self._cached_scores: np.ndarray | None = None
 
     def fit_pseudo(
         self,
@@ -77,7 +78,9 @@ class SemiSupervisedLGBMDetector(BaseAnomalyDetector):
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=self.random_state)
         self.models_ = []
         self.best_iterations_ = []
-        logger.info(f"Training LightGBM ensemble on {len(X_train):,} samples across {self.n_splits} folds (LR={self.learning_rate}, scale_pos_weight={scale_pos_weight:.2f}, patience={self.early_stopping_rounds})...")
+        logger.info(
+            f"Training LightGBM ensemble on {len(X_train):,} samples across {self.n_splits} folds (LR={self.learning_rate}, scale_pos_weight={scale_pos_weight:.2f}, patience={self.early_stopping_rounds})..."
+        )
 
         for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X_train, y_train), start=1):
             X_tr, y_tr = X_train[train_idx], y_train[train_idx]
@@ -99,30 +102,43 @@ class SemiSupervisedLGBMDetector(BaseAnomalyDetector):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 clf.fit(
-                    X_tr, y_tr,
+                    X_tr,
+                    y_tr,
                     eval_set=[(X_va, y_va)],
                     eval_metric="binary_logloss",
                     callbacks=[
-                        lgb.early_stopping(stopping_rounds=self.early_stopping_rounds, verbose=True),
+                        lgb.early_stopping(
+                            stopping_rounds=self.early_stopping_rounds, verbose=True
+                        ),
                         lgb.log_evaluation(period=self.log_period),
                     ],
                 )
             self.models_.append(clf)
             self.best_iterations_.append(clf.best_iteration_)
             best_loss = clf.best_score_.get("valid_0", {}).get("binary_logloss", 0.0)
-            logger.info(f"  Fold [{fold_idx}/{self.n_splits}] | Optimal tree {clf.best_iteration_:04d} | Val LogLoss: {best_loss:.5f}")
+            logger.info(
+                f"  Fold [{fold_idx}/{self.n_splits}] | Optimal tree {clf.best_iteration_:04d} | Val LogLoss: {best_loss:.5f}"
+            )
 
         self.is_fitted = True
 
-        all_probs = np.mean([clf.predict_proba(full_X_matrix)[:, 1] for clf in self.models_], axis=0)
+        all_probs = np.mean(
+            [clf.predict_proba(full_X_matrix)[:, 1] for clf in self.models_], axis=0
+        )
         self._cached_scores = all_probs
         self.calibrated_threshold_ = self.anomaly_threshold
-        logger.info(f"LightGBM training complete. Best iterations: {self.best_iterations_}. Probability threshold: {self.calibrated_threshold_:.2f}")
+        logger.info(
+            f"LightGBM training complete. Best iterations: {self.best_iterations_}. Probability threshold: {self.calibrated_threshold_:.2f}"
+        )
         return self
 
-    def fit(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> "SemiSupervisedLGBMDetector":
+    def fit(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> "SemiSupervisedLGBMDetector":
         if y is None:
-            raise ValueError("SemiSupervisedLGBMDetector requires pseudo ground truth labels `y` for fitting")
+            raise ValueError(
+                "SemiSupervisedLGBMDetector requires pseudo ground truth labels `y` for fitting"
+            )
 
         if isinstance(X, pd.DataFrame):
             _, X_matrix = self.feature_pipeline.fit_transform(X)
@@ -158,11 +174,14 @@ class SemiSupervisedLGBMDetector(BaseAnomalyDetector):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 clf.fit(
-                    X_tr, y_tr,
+                    X_tr,
+                    y_tr,
                     eval_set=[(X_va, y_va)],
                     eval_metric="binary_logloss",
                     callbacks=[
-                        lgb.early_stopping(stopping_rounds=self.early_stopping_rounds, verbose=True),
+                        lgb.early_stopping(
+                            stopping_rounds=self.early_stopping_rounds, verbose=True
+                        ),
                         lgb.log_evaluation(period=self.log_period),
                     ],
                 )
@@ -176,7 +195,11 @@ class SemiSupervisedLGBMDetector(BaseAnomalyDetector):
         if not self.is_fitted or not self.models_:
             raise RuntimeError("Model must be fitted before predict")
 
-        if self._cached_scores is not None and isinstance(X, pd.DataFrame) and len(X) == len(self._cached_scores):
+        if (
+            self._cached_scores is not None
+            and isinstance(X, pd.DataFrame)
+            and len(X) == len(self._cached_scores)
+        ):
             scores = self._cached_scores
             self._cached_scores = None
             return scores
@@ -189,7 +212,9 @@ class SemiSupervisedLGBMDetector(BaseAnomalyDetector):
         probs = np.mean([clf.predict_proba(X_matrix)[:, 1] for clf in self.models_], axis=0)
         return probs
 
-    def predict_label(self, X: pd.DataFrame | np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+    def predict_label(
+        self, X: pd.DataFrame | np.ndarray, threshold: float | None = None
+    ) -> np.ndarray:
         scores = self.predict_score(X)
         thr = threshold if threshold is not None else self.calibrated_threshold_
         return (scores >= thr).astype(int)

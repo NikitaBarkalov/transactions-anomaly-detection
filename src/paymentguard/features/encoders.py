@@ -1,4 +1,3 @@
-from typing import Optional
 import pandas as pd
 
 
@@ -11,7 +10,7 @@ class CategoricalEncoder:
         self.ohe_columns_: list[str] = []
         self.is_fitted = False
 
-    def fit(self, df: pd.DataFrame, cat_cols: Optional[list[str]] = None) -> "CategoricalEncoder":
+    def fit(self, df: pd.DataFrame, cat_cols: list[str] | None = None) -> "CategoricalEncoder":
         if cat_cols is None:
             cat_cols = [
                 "currency",
@@ -40,7 +39,9 @@ class CategoricalEncoder:
                 self.freq_maps_[col] = freq
 
         if self.ohe_cols:
-            dummies = pd.get_dummies(df[self.ohe_cols].astype(str), prefix=self.ohe_cols, drop_first=False)
+            dummies = pd.get_dummies(
+                df[self.ohe_cols].astype(str), prefix=self.ohe_cols, drop_first=False
+            )
             self.ohe_columns_ = list(dummies.columns)
 
         self.is_fitted = True
@@ -58,11 +59,13 @@ class CategoricalEncoder:
 
         if self.ohe_cols:
             available_ohe = [c for c in self.ohe_cols if c in df.columns]
-            dummies = pd.get_dummies(df[available_ohe].astype(str), prefix=available_ohe, drop_first=False)
+            dummies = pd.get_dummies(
+                df[available_ohe].astype(str), prefix=available_ohe, drop_first=False
+            )
             dummies = dummies.reindex(columns=self.ohe_columns_, fill_value=0)
             df = pd.concat([df, dummies], axis=1)
 
         return df
 
-    def fit_transform(self, df: pd.DataFrame, cat_cols: Optional[list[str]] = None) -> pd.DataFrame:
+    def fit_transform(self, df: pd.DataFrame, cat_cols: list[str] | None = None) -> pd.DataFrame:
         return self.fit(df, cat_cols).transform(df)

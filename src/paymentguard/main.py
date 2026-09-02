@@ -2,21 +2,21 @@ import argparse
 import pickle
 import time
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import torch
 
 from paymentguard.data.loader import load_dataset
 from paymentguard.data.validator import validate_and_clean_data
-from paymentguard.models.rule_based.rules import RuleBasedAuditor
-from paymentguard.models.clustering.multi_view import MultiViewClusteringDetector
-from paymentguard.models.isolation_forest.detector import IsolationForestDetector
-from paymentguard.models.vae.trainer import DeepFinancialVAEDetector
-from paymentguard.models.semi_supervised.triangulator import ConsensusTriangulator
-from paymentguard.models.semi_supervised.lgbm_classifier import SemiSupervisedLGBMDetector
-from paymentguard.models.ensemble.combiner import MetaEnsembleDetector
 from paymentguard.evaluation.benchmark import compare_existing_runs
 from paymentguard.evaluation.metrics import compute_anomaly_distribution
+from paymentguard.models.clustering.multi_view import MultiViewClusteringDetector
+from paymentguard.models.ensemble.combiner import MetaEnsembleDetector
+from paymentguard.models.isolation_forest.detector import IsolationForestDetector
+from paymentguard.models.rule_based.rules import RuleBasedAuditor
+from paymentguard.models.semi_supervised.lgbm_classifier import SemiSupervisedLGBMDetector
+from paymentguard.models.semi_supervised.triangulator import ConsensusTriangulator
+from paymentguard.models.vae.trainer import DeepFinancialVAEDetector
 from paymentguard.utils.logger import get_logger
 
 logger = get_logger("PaymentGuard-CLI")
@@ -48,17 +48,36 @@ def load_model_artifact(name: str, models_dir: Path = Path("models")) -> any:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PaymentGuard-1M: Anomaly Detection Benchmark CLI")
-    parser.add_argument("--data", default="data/transactions.csv", help="Path to input dataset CSV/Parquet")
+    parser.add_argument(
+        "--data", default="data/transactions.csv", help="Path to input dataset CSV/Parquet"
+    )
     parser.add_argument(
         "--model",
-        choices=["rule_based", "clustering", "isolation_forest", "vae", "semi_supervised", "ensemble"],
+        choices=[
+            "rule_based",
+            "clustering",
+            "isolation_forest",
+            "vae",
+            "semi_supervised",
+            "ensemble",
+        ],
         default="ensemble",
         help="Anomaly detection model to execute",
     )
-    parser.add_argument("--benchmark", action="store_true", help="Compare existing completed model outputs in reports/")
-    parser.add_argument("--sample_frac", type=float, default=None, help="Fraction of dataset to sample (0.0 to 1.0)")
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Compare existing completed model outputs in reports/",
+    )
+    parser.add_argument(
+        "--sample_frac", type=float, default=None, help="Fraction of dataset to sample (0.0 to 1.0)"
+    )
     parser.add_argument("--output", default=None, help="Custom output path for submission CSV")
-    parser.add_argument("--force-retrain", action="store_true", help="Force retraining even if model artifact exists")
+    parser.add_argument(
+        "--force-retrain",
+        action="store_true",
+        help="Force retraining even if model artifact exists",
+    )
     args = parser.parse_args()
 
     if args.benchmark:
@@ -85,19 +104,29 @@ def main() -> None:
 
             report_candidates = [
                 ("rule_based", Path("reports/submission_rule_based.csv"), RuleBasedAuditor),
-                ("clustering", Path("reports/submission_clustering.csv"), MultiViewClusteringDetector),
-                ("isolation_forest", Path("reports/submission_isolation_forest.csv"), IsolationForestDetector),
+                (
+                    "clustering",
+                    Path("reports/submission_clustering.csv"),
+                    MultiViewClusteringDetector,
+                ),
+                (
+                    "isolation_forest",
+                    Path("reports/submission_isolation_forest.csv"),
+                    IsolationForestDetector,
+                ),
                 ("vae", Path("reports/submission_vae.csv"), DeepFinancialVAEDetector),
             ]
 
-            for name, p_path, detector_cls in report_candidates:
+            for name, p_path, _detector_cls in report_candidates:
                 if p_path.exists():
                     logger.info(f"Reusing existing predictions from {p_path}...")
                     base_preds.append(pd.read_csv(p_path)["is_anomaly"].values)
                     model_names.append(name)
 
             if len(base_preds) < 2:
-                logger.info("Fewer than 2 base reports found in reports/. Running Rule-Based and Clustering...")
+                logger.info(
+                    "Fewer than 2 base reports found in reports/. Running Rule-Based and Clustering..."
+                )
                 m1 = RuleBasedAuditor()
                 m2 = MultiViewClusteringDetector()
                 p1 = m1.fit_predict(df)
@@ -106,10 +135,14 @@ def main() -> None:
                 model_names = ["rule_based", "clustering"]
 
             min_agree = 2
-            logger.info(f"Triangulating consensus across {len(base_preds)} models ({', '.join(model_names)}) with min_agreement={min_agree}...")
+            logger.info(
+                f"Triangulating consensus across {len(base_preds)} models ({', '.join(model_names)}) with min_agreement={min_agree}..."
+            )
             triangulator = ConsensusTriangulator(min_agreement=min_agree)
             idx, pseudo_y = triangulator.generate_pseudo_labels(base_preds)
-            logger.info(f"Generated {len(idx):,} pseudo-labeled samples ({int((pseudo_y==1).sum()):,} pos, {int((pseudo_y==0).sum()):,} neg). Training LightGBM...")
+            logger.info(
+                f"Generated {len(idx):,} pseudo-labeled samples ({int((pseudo_y == 1).sum()):,} pos, {int((pseudo_y == 0).sum()):,} neg). Training LightGBM..."
+            )
             model = SemiSupervisedLGBMDetector()
             model.fit_pseudo(df, idx, pseudo_y)
             save_model_artifact(model, args.model)
@@ -117,7 +150,9 @@ def main() -> None:
 
         elapsed = time.perf_counter() - t0
         dist = compute_anomaly_distribution(preds)
-        logger.info(f"Predictions: {dist['anomaly_count']:,} anomalies ({dist['anomaly_rate_pct']}%) in {elapsed:.2f}s")
+        logger.info(
+            f"Predictions: {dist['anomaly_count']:,} anomalies ({dist['anomaly_rate_pct']}%) in {elapsed:.2f}s"
+        )
         out_df = df[["order_id"]].copy()
         out_df["is_anomaly"] = preds
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,16 +161,24 @@ def main() -> None:
         return
 
     elif args.model == "ensemble":
-        existing_reports = list(Path("reports").glob("submission_*.csv")) if Path("reports").exists() else []
+        existing_reports = (
+            list(Path("reports").glob("submission_*.csv")) if Path("reports").exists() else []
+        )
         if len(existing_reports) >= 2:
             logger.info(f"Combining {len(existing_reports)} existing model runs from reports/...")
-            dfs = [pd.read_csv(f)["is_anomaly"].values for f in existing_reports if f.name != "submission_ensemble.csv"]
+            dfs = [
+                pd.read_csv(f)["is_anomaly"].values
+                for f in existing_reports
+                if f.name != "submission_ensemble.csv"
+            ]
             if len(dfs) >= 2:
                 votes = np.column_stack(dfs)
                 preds = (votes.mean(axis=1) >= 0.5).astype(int)
                 elapsed = time.perf_counter() - t0
                 dist = compute_anomaly_distribution(preds)
-                logger.info(f"Ensemble predictions: {dist['anomaly_count']:,} anomalies ({dist['anomaly_rate_pct']}%) in {elapsed:.2f}s")
+                logger.info(
+                    f"Ensemble predictions: {dist['anomaly_count']:,} anomalies ({dist['anomaly_rate_pct']}%) in {elapsed:.2f}s"
+                )
                 out_df = df[["order_id"]].copy()
                 out_df["is_anomaly"] = preds
                 out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,7 +214,9 @@ def main() -> None:
 
     elapsed = time.perf_counter() - t0
     dist = compute_anomaly_distribution(preds)
-    logger.info(f"Predictions complete: {dist['anomaly_count']:,} anomalies ({dist['anomaly_rate_pct']}%) in {elapsed:.2f}s")
+    logger.info(
+        f"Predictions complete: {dist['anomaly_count']:,} anomalies ({dist['anomaly_rate_pct']}%) in {elapsed:.2f}s"
+    )
 
     out_df = df[["order_id"]].copy()
     out_df["is_anomaly"] = preds

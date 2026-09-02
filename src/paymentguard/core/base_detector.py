@@ -1,32 +1,39 @@
+import pickle
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional, Self
-import pickle
+from typing import Any, Self
+
 import numpy as np
 import pandas as pd
 
 
 class BaseAnomalyDetector(ABC):
-    def __init__(self, name: str, config: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, name: str, config: dict[str, Any] | None = None) -> None:
         self.name = name
         self.config = config or {}
         self.is_fitted = False
 
     @abstractmethod
-    def fit(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> "BaseAnomalyDetector":
+    def fit(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> "BaseAnomalyDetector":
         pass
 
     @abstractmethod
     def predict_score(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
         pass
 
-    def predict_label(self, X: pd.DataFrame | np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+    def predict_label(
+        self, X: pd.DataFrame | np.ndarray, threshold: float | None = None
+    ) -> np.ndarray:
         scores = self.predict_score(X)
         if threshold is None:
             threshold = self.config.get("anomaly_threshold", 0.5)
         return (scores >= threshold).astype(int)
 
-    def fit_predict(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> np.ndarray:
+    def fit_predict(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> np.ndarray:
         return self.fit(X, y).predict_label(X)
 
     def save(self, path: str | Path) -> None:

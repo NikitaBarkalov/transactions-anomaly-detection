@@ -1,5 +1,6 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+
 from paymentguard.core.constants import COUNTRY_CURRENCIES
 
 
@@ -15,7 +16,9 @@ def compute_geo_security_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df["is_secured_int"] = df["is_secured"].astype(np.int8)
 
-    df["is_risky_combo"] = ((df["is_geo_mismatch"] == 1) & (df["is_secured_int"] == 0)).astype(np.int8)
+    df["is_risky_combo"] = ((df["is_geo_mismatch"] == 1) & (df["is_secured_int"] == 0)).astype(
+        np.int8
+    )
 
     is_first = (df["order_type"] == "first").astype(np.int8)
     df["is_first_order"] = is_first

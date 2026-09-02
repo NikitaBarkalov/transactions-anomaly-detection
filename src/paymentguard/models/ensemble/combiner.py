@@ -1,4 +1,6 @@
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -10,8 +12,8 @@ class MetaEnsembleDetector(BaseAnomalyDetector):
         self,
         detectors: Sequence[BaseAnomalyDetector],
         mode: str = "soft_voting",
-        weights: Optional[Sequence[float]] = None,
-        config: Optional[dict[str, Any]] = None,
+        weights: Sequence[float] | None = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(name="MetaEnsembleDetector", config=config or {})
         self.detectors = list(detectors)
@@ -21,7 +23,9 @@ class MetaEnsembleDetector(BaseAnomalyDetector):
         else:
             self.weights = np.ones(len(self.detectors)) / len(self.detectors)
 
-    def fit(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> "MetaEnsembleDetector":
+    def fit(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> "MetaEnsembleDetector":
         for det in self.detectors:
             if not det.is_fitted:
                 det.fit(X, y)
@@ -31,11 +35,13 @@ class MetaEnsembleDetector(BaseAnomalyDetector):
     def predict_score(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
         all_scores = [det.predict_score(X) for det in self.detectors]
         fused_score = np.zeros(len(all_scores[0]))
-        for score, w in zip(all_scores, self.weights):
+        for score, w in zip(all_scores, self.weights, strict=False):
             fused_score += score * w
         return fused_score
 
-    def predict_label(self, X: pd.DataFrame | np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+    def predict_label(
+        self, X: pd.DataFrame | np.ndarray, threshold: float | None = None
+    ) -> np.ndarray:
         if self.mode == "union":
             preds = [det.predict_label(X) for det in self.detectors]
             union_pred = np.zeros(len(preds[0]), dtype=bool)

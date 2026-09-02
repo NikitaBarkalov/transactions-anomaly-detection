@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import torch
@@ -7,28 +8,26 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from paymentguard.core.base_detector import BaseAnomalyDetector
 from paymentguard.features.pipeline import FeaturePipeline
+from paymentguard.models.vae.clipper import PerFeatureClipper
+from paymentguard.models.vae.loss import vae_loss
 from paymentguard.models.vae.network import (
-    FinancialVAE,
-    VAEConfig,
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_BETA_END,
+    DEFAULT_BETA_START,
+    DEFAULT_BETA_WARMUP_EPOCHS,
+    DEFAULT_CLIP_PERCENTILE,
+    DEFAULT_DROPOUT,
+    DEFAULT_EPOCHS,
+    DEFAULT_FREE_BITS,
+    DEFAULT_GRAD_CLIP,
     DEFAULT_HIDDEN_DIMS,
     DEFAULT_LATENT_DIM,
-    DEFAULT_DROPOUT,
-    DEFAULT_CLIP_PERCENTILE,
-    DEFAULT_FREE_BITS,
-    DEFAULT_BETA_START,
-    DEFAULT_BETA_END,
-    DEFAULT_BETA_WARMUP_EPOCHS,
-    DEFAULT_EPOCHS,
-    DEFAULT_BATCH_SIZE,
     DEFAULT_LEARNING_RATE,
-    DEFAULT_WEIGHT_DECAY,
-    DEFAULT_GRAD_CLIP,
     DEFAULT_SEED,
+    DEFAULT_WEIGHT_DECAY,
+    FinancialVAE,
+    VAEConfig,
 )
-from paymentguard.models.vae.loss import vae_loss
-from paymentguard.models.vae.clipper import PerFeatureClipper
-
-
 from paymentguard.utils.logger import get_logger
 
 logger = get_logger("DeepFinancialVAE")
@@ -37,7 +36,7 @@ logger = get_logger("DeepFinancialVAE")
 class DeepFinancialVAEDetector(BaseAnomalyDetector):
     def __init__(
         self,
-        hidden_dims: Optional[list[int]] = None,
+        hidden_dims: list[int] | None = None,
         latent_dim: int = DEFAULT_LATENT_DIM,
         dropout: float = DEFAULT_DROPOUT,
         clip_percentile: float = DEFAULT_CLIP_PERCENTILE,
@@ -51,8 +50,8 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
         weight_decay: float = DEFAULT_WEIGHT_DECAY,
         grad_clip: float = DEFAULT_GRAD_CLIP,
         seed: int = DEFAULT_SEED,
-        device: Optional[str] = None,
-        config: Optional[dict[str, Any]] = None,
+        device: str | None = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(name="DeepFinancialVAEDetector", config=config or {})
         if device is not None:
@@ -76,11 +75,11 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
             grad_clip=grad_clip,
             seed=seed,
         )
-        self.model: Optional[FinancialVAE] = None
+        self.model: FinancialVAE | None = None
         self.clipper = PerFeatureClipper(percentile=self.vae_cfg.clip_percentile)
         self.feature_pipeline = FeaturePipeline(use_user_agg=True, use_sequential=True)
         self.score_threshold_: float = 0.0
-        self.train_scores_: Optional[np.ndarray] = None
+        self.train_scores_: np.ndarray | None = None
 
     def _predict_score_from_matrix(self, X_clipped: np.ndarray) -> np.ndarray:
         if self.model is None:
@@ -100,7 +99,9 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
 
         return np.concatenate(recon_errors)
 
-    def fit(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> "DeepFinancialVAEDetector":
+    def fit(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> "DeepFinancialVAEDetector":
         if isinstance(X, pd.DataFrame):
             _, X_matrix = self.feature_pipeline.fit_transform(X)
         else:
@@ -112,13 +113,21 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
         self.model = FinancialVAE(self.vae_cfg).to(self.device)
 
         dataset = TensorDataset(torch.from_numpy(X_clipped.astype(np.float32)))
-        loader = DataLoader(dataset, batch_size=self.vae_cfg.batch_size, shuffle=True, drop_last=False)
+        loader = DataLoader(
+            dataset, batch_size=self.vae_cfg.batch_size, shuffle=True, drop_last=False
+        )
 
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.vae_cfg.learning_rate, weight_decay=self.vae_cfg.weight_decay)
+        optimizer = torch.optim.Adam(
+            self.model.parameters(),
+            lr=self.vae_cfg.learning_rate,
+            weight_decay=self.vae_cfg.weight_decay,
+        )
 
         self.model.train()
         epochs = self.vae_cfg.epochs
-        logger.info(f"Training VAE on device [{self.device}] for {epochs} epochs (Input Dim: {self.vae_cfg.input_dim}, Latent Dim: {self.vae_cfg.latent_dim}, Batch Size: {self.vae_cfg.batch_size})...")
+        logger.info(
+            f"Training VAE on device [{self.device}] for {epochs} epochs (Input Dim: {self.vae_cfg.input_dim}, Latent Dim: {self.vae_cfg.latent_dim}, Batch Size: {self.vae_cfg.batch_size})..."
+        )
 
         for epoch in range(1, epochs + 1):
             beta = min(1.0, epoch / max(1, self.vae_cfg.beta_warmup_epochs)) * self.vae_cfg.beta_end
@@ -144,7 +153,9 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
             avg_loss = total_loss / max(1, n_batches)
             avg_recon = total_recon / max(1, n_batches)
             avg_kl = total_kl / max(1, n_batches)
-            logger.info(f"  Epoch [{epoch:02d}/{epochs:02d}] | Loss: {avg_loss:.4f} | Recon: {avg_recon:.4f} | KL: {avg_kl:.4f} | Beta: {beta:.4f}")
+            logger.info(
+                f"  Epoch [{epoch:02d}/{epochs:02d}] | Loss: {avg_loss:.4f} | Recon: {avg_recon:.4f} | KL: {avg_kl:.4f} | Beta: {beta:.4f}"
+            )
 
         self.is_fitted = True
 
@@ -153,7 +164,9 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
         mu_log = float(np.mean(log_scores))
         sigma_log = float(np.std(log_scores))
         self.score_threshold_ = float(np.exp(mu_log + 1.50 * sigma_log))
-        logger.info(f"VAE training complete. Adaptive log-normal 1.50-sigma anomaly threshold: {self.score_threshold_:.4f}")
+        logger.info(
+            f"VAE training complete. Adaptive log-normal 1.50-sigma anomaly threshold: {self.score_threshold_:.4f}"
+        )
         return self
 
     def predict_score(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
@@ -168,13 +181,17 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
         X_clipped = self.clipper.transform(X_matrix)
         return self._predict_score_from_matrix(X_clipped)
 
-    def fit_predict(self, X: pd.DataFrame | np.ndarray, y: Optional[pd.Series | np.ndarray] = None) -> np.ndarray:
+    def fit_predict(
+        self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray | None = None
+    ) -> np.ndarray:
         self.fit(X, y)
         if self.train_scores_ is not None:
             return (self.train_scores_ >= self.score_threshold_).astype(int)
         return self.predict_label(X)
 
-    def predict_label(self, X: pd.DataFrame | np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+    def predict_label(
+        self, X: pd.DataFrame | np.ndarray, threshold: float | None = None
+    ) -> np.ndarray:
         scores = self.predict_score(X)
         thr = threshold if threshold is not None else self.score_threshold_
         return (scores >= thr).astype(int)
@@ -193,7 +210,9 @@ class DeepFinancialVAEDetector(BaseAnomalyDetector):
         torch.save(checkpoint, out_path)
 
     @classmethod
-    def load_checkpoint(cls, path: str | Path, device: Optional[str] = None) -> "DeepFinancialVAEDetector":
+    def load_checkpoint(
+        cls, path: str | Path, device: str | None = None
+    ) -> "DeepFinancialVAEDetector":
         in_path = Path(path)
         dev = device or ("cuda" if torch.cuda.is_available() else "cpu")
         checkpoint = torch.load(in_path, map_location=dev)

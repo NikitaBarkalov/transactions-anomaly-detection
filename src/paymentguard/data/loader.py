@@ -2,8 +2,9 @@ import argparse
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
+
 import pandas as pd
+
 from paymentguard.utils.logger import get_logger
 
 logger = get_logger("DataLoader")
@@ -47,7 +48,11 @@ def download_dataset(
                     downloaded_bytes += len(chunk)
                     if total_size > 0:
                         pct = (downloaded_bytes / total_size) * 100
-                        print(f"\rDownloading dataset: {downloaded_bytes / (1024 * 1024):.1f} MB / {total_size / (1024 * 1024):.1f} MB ({pct:.1f}%)", end="", flush=True)
+                        print(
+                            f"\rDownloading dataset: {downloaded_bytes / (1024 * 1024):.1f} MB / {total_size / (1024 * 1024):.1f} MB ({pct:.1f}%)",
+                            end="",
+                            flush=True,
+                        )
                 print()
             downloaded = True
             logger.info(f"Successfully downloaded dataset to {out_path.resolve()}")
@@ -65,15 +70,17 @@ def download_dataset(
 
 def load_dataset(
     file_path: str | Path = "data/transactions.csv",
-    nrows: Optional[int] = None,
-    sample_frac: Optional[float] = None,
+    nrows: int | None = None,
+    sample_frac: float | None = None,
     random_state: int = 42,
     auto_download: bool = True,
 ) -> pd.DataFrame:
     path = Path(file_path)
     if not path.exists():
         if auto_download and path.name in ("transactions.csv", "transactions.parquet"):
-            logger.warning(f"File not found at {path}. Initiating automatic download from Hugging Face...")
+            logger.warning(
+                f"File not found at {path}. Initiating automatic download from Hugging Face..."
+            )
             download_dataset(target_path=path)
         else:
             raise FileNotFoundError(f"Dataset not found at path: {path}")
@@ -96,9 +103,13 @@ def load_dataset(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PaymentGuard Dataset Downloader")
-    parser.add_argument("--repo", default=DEFAULT_HF_REPO, help="Hugging Face dataset repository ID")
+    parser.add_argument(
+        "--repo", default=DEFAULT_HF_REPO, help="Hugging Face dataset repository ID"
+    )
     parser.add_argument("--output", default="data/transactions.csv", help="Target output file path")
-    parser.add_argument("--force", action="store_true", help="Force re-download if file already exists")
+    parser.add_argument(
+        "--force", action="store_true", help="Force re-download if file already exists"
+    )
     args = parser.parse_args()
 
     download_dataset(repo_id=args.repo, target_path=args.output, force=args.force)

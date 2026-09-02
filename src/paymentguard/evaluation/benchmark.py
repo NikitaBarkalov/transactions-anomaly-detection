@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
-from typing import Optional
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 from paymentguard.evaluation.metrics import (
     compute_anomaly_distribution,
@@ -14,7 +14,7 @@ from paymentguard.utils.logger import get_logger
 logger = get_logger("Benchmark")
 
 
-def compare_existing_runs(reports_dir: str | Path = "reports") -> Optional[pd.DataFrame]:
+def compare_existing_runs(reports_dir: str | Path = "reports") -> pd.DataFrame | None:
     dir_path = Path(reports_dir)
     if not dir_path.exists():
         logger.warning(f"Reports directory not found: {dir_path}")
@@ -39,12 +39,14 @@ def compare_existing_runs(reports_dir: str | Path = "reports") -> Optional[pd.Da
         predictions[model_name] = preds
 
         dist = compute_anomaly_distribution(preds)
-        benchmark_results.append({
-            "Paradigm / Model": model_name,
-            "Anomaly Count": dist["anomaly_count"],
-            "Anomaly Rate (%)": dist["anomaly_rate_pct"],
-            "Total Samples": dist["total_samples"],
-        })
+        benchmark_results.append(
+            {
+                "Paradigm / Model": model_name,
+                "Anomaly Count": dist["anomaly_count"],
+                "Anomaly Rate (%)": dist["anomaly_rate_pct"],
+                "Total Samples": dist["total_samples"],
+            }
+        )
 
     if not benchmark_results:
         logger.warning("No valid prediction files with 'is_anomaly' column found.")
@@ -76,7 +78,9 @@ def compare_existing_runs(reports_dir: str | Path = "reports") -> Optional[pd.Da
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Payment Anomaly Detection: Comparison Tool")
-    parser.add_argument("--reports-dir", default="reports", help="Directory containing model submission CSVs")
+    parser.add_argument(
+        "--reports-dir", default="reports", help="Directory containing model submission CSVs"
+    )
     args = parser.parse_args()
 
     compare_existing_runs(reports_dir=args.reports_dir)
