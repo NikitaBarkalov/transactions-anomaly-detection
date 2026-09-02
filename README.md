@@ -56,7 +56,7 @@ Evaluates transactions against deterministic business and operational invariants
 ### 2. Multi-View Clustering (`MiniBatchKMeans`)
 Decomposes the feature space into three domain-specific subspaces:
 * **Behavioral Subspace ($k = 25$):** User frequency, transaction velocity, and refund tendencies. Anomalies are scored via a weighted toxicity index.
-* **Technical Routing Subspace ($k = 100$):** Clustering over payment methods, order types, and gateway configurations to identify failing routes ($\text{fail\_rate} > 60\%$).
+* **Technical Routing Subspace ($k = 100$):** Clustering over payment methods, order types, and gateway configurations to identify failing routes ($\text{failure rate} > 60\%$).
 * **Latency Subspace ($k = 15$):** Groups transactions by processing duration to isolate extreme delays.
 
 ### 3. Density-Based Tree Isolation (`IsolationForest`)
@@ -67,7 +67,7 @@ Decomposes the feature space into three domain-specific subspaces:
 Implemented in PyTorch for tabular financial data:
 * **Architecture:** $D_{\text{in}} \rightarrow 256 \rightarrow 128 \rightarrow 64 \rightarrow z\,(16) \rightarrow 64 \rightarrow 128 \rightarrow 256 \rightarrow D_{\text{out}}$ with LayerNorm, LeakyReLU(0.1), and Dropout(0.2).
 * **Numerical Stability:** PerFeatureClipper clamps extreme percentile values to prevent gradient instability.
-* **Loss Function:** Huber Reconstruction Loss combined with $\beta$-annealed KL divergence (5 warmup epochs) and $\text{free\_bits} = 0.1$ per latent dimension to prevent posterior collapse.
+* **Loss Function:** Huber Reconstruction Loss combined with $\beta$-annealed KL divergence (5 warmup epochs) and $\text{free bits} = 0.1$ per latent dimension to prevent posterior collapse.
 * **Thresholding:** Adaptive log-normal statistical threshold ($\mu_{\ln} + 1.50\,\sigma_{\ln}$) identifying the natural anomaly tail.
 
 ### 5. Consensus Pseudo-Labeling (`LightGBM`)
