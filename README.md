@@ -45,19 +45,19 @@ flowchart TD
 Evaluates transactions against deterministic business and operational invariants:
 * **Layer 0 (Integrity):** Negative processing latency ($\Delta t < 0$).
 * **Layer 1 (Financial Limits):** Non-positive amounts ($\text{amount} \le 0$) and currency-specific $3\sigma$ IQR outliers.
-* **Layer 2 (Processing Delays):** Extreme gateway lag ($\Delta t > 3000\text{s}$) and PSP Gamma delays ($> 1000\text{s}$).
+* **Layer 2 (Processing Delays):** Extreme gateway lag ($\Delta t > 3000\text{ s}$) and PSP Gamma delays ($> 1000\text{ s}$).
 * **Layer 3 (Velocity Bursts):** Rapid successive user transactions within 0.1s to 60s.
-* **Layer 4 (Geo-Security):** IP Country $\ne$ BIN Country on first orders without 3D-Secure authentication.
+* **Layer 4 (Geo-Security):** $\text{IP Country} \ne \text{BIN Country}$ on first orders without 3D-Secure authentication.
 * **Layer 5 (Compromised Entities):** High-risk bank routing (Bank 777 with 100% failure rate).
 * **Layer 6 (Protocol Inconsistencies):** Transactions marked as successful despite active error codes.
 * **Layer 7 (Refund Inconsistencies):** Refund amount exceeding original transaction amount, or refunds issued on failed attempts.
-* **Layer 8 (Incident Patterns):** Targeted routing incidents (e.g., PSP Beta August 5-9 refund wave; PSP Alpha recurring error 3.08 on amounts $> \$70$).
+* **Layer 8 (Incident Patterns):** Targeted routing incidents (e.g., PSP Beta August 5–9 refund wave; PSP Alpha recurring error 3.08 on amounts $> \$70$).
 
 ### 2. Multi-View Clustering (`MiniBatchKMeans`)
 Decomposes the feature space into three domain-specific subspaces:
-* **Behavioral Subspace ($k=25$):** User frequency, transaction velocity, and refund tendencies. Anomalies are scored via a weighted toxicity index.
-* **Technical Routing Subspace ($k=100$):** Clustering over payment methods, order types, and gateway configurations to identify failing routes ($\text{fail\_rate} > 60\%$).
-* **Latency Subspace ($k=15$):** Groups transactions by processing duration to isolate extreme delays.
+* **Behavioral Subspace ($k = 25$):** User frequency, transaction velocity, and refund tendencies. Anomalies are scored via a weighted toxicity index.
+* **Technical Routing Subspace ($k = 100$):** Clustering over payment methods, order types, and gateway configurations to identify failing routes ($\text{fail\_rate} > 60\%$).
+* **Latency Subspace ($k = 15$):** Groups transactions by processing duration to isolate extreme delays.
 
 ### 3. Density-Based Tree Isolation (`IsolationForest`)
 * Employs 300 randomized isolation trees with `contamination="auto"` to isolate sparse data points in high-dimensional continuous space.
@@ -65,13 +65,13 @@ Decomposes the feature space into three domain-specific subspaces:
 
 ### 4. Deep Generative Modeling (`VAE`)
 Implemented in PyTorch for tabular financial data:
-* **Architecture:** $D_{\text{in}} \rightarrow 256 \rightarrow 128 \rightarrow 64 \rightarrow z (16) \rightarrow 64 \rightarrow 128 \rightarrow 256 \rightarrow D_{\text{out}}$ with LayerNorm, LeakyReLU(0.1), and Dropout(0.2).
+* **Architecture:** $D_{\text{in}} \rightarrow 256 \rightarrow 128 \rightarrow 64 \rightarrow z\,(16) \rightarrow 64 \rightarrow 128 \rightarrow 256 \rightarrow D_{\text{out}}$ with LayerNorm, LeakyReLU(0.1), and Dropout(0.2).
 * **Numerical Stability:** PerFeatureClipper clamps extreme percentile values to prevent gradient instability.
-* **Loss Function:** Huber Reconstruction Loss combined with $\beta$-annealed KL divergence (5 warmup epochs) and `free_bits = 0.1` per latent dimension to prevent posterior collapse.
-* **Thresholding:** Adaptive log-normal statistical threshold ($\mu_{\ln} + 1.50 \cdot \sigma_{\ln}$) identifying the natural anomaly tail.
+* **Loss Function:** Huber Reconstruction Loss combined with $\beta$-annealed KL divergence (5 warmup epochs) and $\text{free\_bits} = 0.1$ per latent dimension to prevent posterior collapse.
+* **Thresholding:** Adaptive log-normal statistical threshold ($\mu_{\ln} + 1.50\,\sigma_{\ln}$) identifying the natural anomaly tail.
 
 ### 5. Consensus Pseudo-Labeling (`LightGBM`)
-* **Triangulation:** Samples where $\ge 2$ base models agree are labeled as positive pseudo-labels ($y=1$), while unanimous non-flagged samples are sampled as clean negatives ($y=0$). Ambiguous samples are excluded from the training split.
+* **Triangulation:** Samples where $\ge 2$ base models agree are labeled as positive pseudo-labels ($y = 1$), while unanimous non-flagged samples are sampled as clean negatives ($y = 0$). Ambiguous samples are excluded from the training split.
 * **Surrogate Classifier:** Stratified 3-Fold LightGBM with early stopping (`patience = 60`, `learning_rate = 0.08`) and class rebalancing learns non-linear decision boundaries.
 * **Inference:** High-confidence thresholding ($P \ge 0.98$) ensures that only samples with high tree certainty are marked as anomalous.
 
