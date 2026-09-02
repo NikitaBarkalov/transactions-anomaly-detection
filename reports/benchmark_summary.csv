@@ -1,0 +1,7 @@
+Paradigm / Model,Anomaly Count,Anomaly Rate (%),Total Transactions,Source File
+clustering,48942,4.89,1000000,submission_clustering.csv
+ensemble,23341,2.33,1000000,submission_ensemble.csv
+isolation_forest,53824,5.38,1000000,submission_isolation_forest.csv
+rule_based,177727,17.77,1000000,submission_rule_based.csv
+semi_supervised,50833,5.08,1000000,submission_semi_supervised.csv
+vae,41838,4.18,1000000,submission_vae.csv

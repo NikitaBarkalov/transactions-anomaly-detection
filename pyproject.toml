@@ -1,0 +1,69 @@
+[project]
+name = "paymentguard-1m"
+version = "0.1.0"
+description = "A Multi-Paradigm Benchmark of Unsupervised, Semi-Supervised, and Deep Generative Approaches for 1M Payment Anomaly Detection"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+authors = [
+    { name = "ML Engineer", email = "engineer@example.com" }
+]
+dependencies = [
+    "torch>=2.2.0",
+    "numpy>=1.26.0,<2.2.0",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.4.0",
+    "lightgbm>=4.3.0",
+    "xgboost>=2.0.0",
+    "hdbscan>=0.8.33",
+    "shap>=0.44.0",
+    "pyyaml>=6.0.1",
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "fastparquet>=2024.2.0",
+    "pydantic>=2.6.0",
+    "rich>=13.7.0",
+    "tabulate>=0.9.0",
+    "ipykernel>=6.29.0",
+]
+
+[project.scripts]
+paymentguard = "paymentguard.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "pre-commit>=3.6.0",
+    "go-task-bin>=3.35.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/paymentguard"]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    "*.ipynb",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP"]
+ignore = ["E501", "B008"]

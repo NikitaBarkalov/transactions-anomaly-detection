@@ -1,0 +1,45 @@
+version: '3'
+
+vars:
+  PYTHON: uv run python
+
+tasks:
+  download-data:
+    desc: Download transactions dataset from Hugging Face
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.data.loader"
+
+  run-rules:
+    desc: Execute 9-Layer Hierarchical Rule Engine
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.main --model rule_based"
+
+  run-clustering:
+    desc: Execute Multi-View Clustering Ensemble (MiniBatchKMeans)
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.main --model clustering"
+
+  run-isoforest:
+    desc: Execute Isolation Forest detector
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.main --model isolation_forest"
+
+  run-vae:
+    desc: Train and evaluate Deep Variational Autoencoder (PyTorch VAE)
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.main --model vae"
+
+  run-pseudo:
+    desc: Train and evaluate Semi-Supervised Consensus LightGBM
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.main --model semi_supervised"
+
+  run-ensemble:
+    desc: Run Unified Meta-Ensemble Anomaly Detector
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.main --model ensemble"
+
+  benchmark:
+    desc: Compare existing completed model runs in reports/
+    cmds:
+      - "{{.PYTHON}} -m paymentguard.evaluation.benchmark"
